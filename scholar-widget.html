@@ -1,0 +1,227 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Citation Metrics</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700;900&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --text-primary: #202124;
+    --text-secondary: #5f6368;
+    --text-body: #3c4043;
+    --accent: #980000;
+    --divider: #dadce0;
+    --font: 'Roboto', Arial, Helvetica, sans-serif;
+  }
+
+  * { box-sizing: border-box; }
+
+  html, body {
+    margin: 0;
+    padding: 0;
+    background: transparent;
+  }
+
+  body {
+    display: flex;
+    justify-content: center;
+    padding: 8px;
+    font-family: var(--font);
+  }
+
+  .widget {
+    width: 100%;
+    max-width: 460px;
+    opacity: 0;
+    transform: translateY(6px);
+    transition: opacity 0.4s ease, transform 0.4s ease;
+  }
+
+  .widget.ready { opacity: 1; transform: translateY(0); }
+
+  hr.rule {
+    border: none;
+    border-top: 1px solid var(--divider);
+    margin: 0 0 18px;
+  }
+  hr.rule.bottom {
+    margin: 18px 0 0;
+  }
+
+  .eyebrow {
+    font-size: 12px;
+    font-weight: 500;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: var(--text-secondary);
+    margin-bottom: 16px;
+  }
+
+  .stats {
+    display: flex;
+  }
+
+  .stat {
+    flex: 1;
+    text-align: center;
+    padding: 0 6px;
+    position: relative;
+  }
+
+  .stat + .stat::before {
+    content: "";
+    position: absolute;
+    left: 0;
+    top: 6px;
+    bottom: 6px;
+    width: 1px;
+    background: var(--divider);
+  }
+
+  .stat-value {
+    font-size: clamp(30px, 8vw, 40px);
+    font-weight: 700;
+    color: var(--text-primary);
+    line-height: 1.05;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .stat-label {
+    margin-top: 8px;
+    font-size: 11px;
+    font-weight: 500;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--text-secondary);
+  }
+
+  .meta {
+    margin-top: 18px;
+    padding-top: 14px;
+    border-top: 1px solid var(--divider);
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    font-size: 13px;
+    color: var(--text-secondary);
+  }
+
+  .meta a {
+    color: var(--accent);
+    text-decoration: underline;
+    text-underline-offset: 2px;
+  }
+  .meta a:hover { opacity: 0.8; }
+  .meta a:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 3px;
+  }
+
+  .error-text {
+    font-size: 13px;
+    color: var(--text-secondary);
+    text-align: center;
+    line-height: 1.5;
+  }
+
+  @media (max-width: 340px) {
+    .stat-value { font-size: 24px; }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .widget { transition: none; }
+  }
+</style>
+</head>
+<body>
+
+  <div class="widget" id="widget">
+    <hr class="rule">
+    <div class="eyebrow" id="eyebrow">Google Scholar Citations</div>
+
+    <div class="stats" id="stats">
+      <div class="stat">
+        <div class="stat-value" id="val-citations">—</div>
+        <div class="stat-label">Citations</div>
+      </div>
+      <div class="stat">
+        <div class="stat-value" id="val-hindex">—</div>
+        <div class="stat-label">h-index</div>
+      </div>
+      <div class="stat">
+        <div class="stat-value" id="val-i10">—</div>
+        <div class="stat-label">i10-index</div>
+      </div>
+    </div>
+
+    <div class="meta">
+      <span id="updated-text">Loading…</span>
+      <a id="profile-link" href="#" target="_blank" rel="noopener">View full profile</a>
+    </div>
+  </div>
+
+<script>
+  const CONFIG = {
+    // The /exec URL from your Apps Script deployment (see Code.gs)
+    appsScriptUrl: 'https://script.google.com/macros/s/AKfycbywbgFXcqV5fgen1G1MV29WxYRkftoq9QySb6dSXICarw_LwitU27_7DGKfiTUiRdE3hA/exec',
+    // Your public Scholar profile, for the "View full profile" link
+    scholarProfileUrl: 'https://scholar.google.com/citations?user=C9ejnjMAAAAJ',
+    // Small label above the numbers
+    eyebrow: 'Google Scholar Citations'
+  };
+  
+  const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  function countUp(el, target, duration) {
+    if (reduceMotion || target === 0) { el.textContent = target; return; }
+    const start = performance.now();
+    function tick(now) {
+      const p = Math.min((now - start) / duration, 1);
+      const eased = 1 - Math.pow(1 - p, 3);
+      el.textContent = Math.round(eased * target);
+      if (p < 1) requestAnimationFrame(tick);
+    }
+    requestAnimationFrame(tick);
+  }
+
+  function formatDate(iso) {
+    try {
+      return new Date(iso).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' });
+    } catch (e) { return 'recently'; }
+  }
+
+  function render(data) {
+    countUp(document.getElementById('val-citations'), data.citations, 900);
+    countUp(document.getElementById('val-hindex'), data.hIndex, 900);
+    countUp(document.getElementById('val-i10'), data.i10Index, 900);
+    document.getElementById('updated-text').textContent = 'Updated ' + formatDate(data.updated);
+  }
+
+  function renderError() {
+    document.getElementById('stats').innerHTML =
+      '<div class="error-text">Citation data isn\'t available right now — the numbers will reappear once the feed is back.</div>';
+    document.getElementById('updated-text').textContent = 'Unavailable';
+  }
+
+  document.getElementById('eyebrow').textContent = CONFIG.eyebrow;
+  document.getElementById('profile-link').href = CONFIG.scholarProfileUrl;
+
+  fetch(CONFIG.appsScriptUrl)
+    .then(function (r) { return r.json(); })
+    .then(function (data) {
+      if (data.error) throw new Error(data.error);
+      render(data);
+    })
+    .catch(function () {
+      renderError();
+    })
+    .finally(function () {
+      document.getElementById('widget').classList.add('ready');
+    });
+</script>
+
+</body>
+</html>
